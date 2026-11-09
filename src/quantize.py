@@ -28,15 +28,17 @@ import time
 from pathlib import Path
 
 import numpy as np
-import torch
 from PIL import Image
 
-from src.data.dataset import build_transforms, index_folder
-from src.models.disease import build_model
+# torch / torchvision are imported inside the functions that need them, so this module can be
+# imported (and its quantizers unit-tested) on a machine without PyTorch installed.
 
 
 # ------------------------------------------------------------------ export
 def export_fp32(ckpt: Path, out: Path, size: int = 224) -> Path:
+    import torch
+    from src.models.disease import build_model
+
     ck = torch.load(ckpt, map_location="cpu")
     model = build_model(ck["arch"], len(ck["classes"]), pretrained=False).eval()
     model.load_state_dict(ck["model"])
@@ -105,19 +107,42 @@ def quantize_int8_static(src: Path, dst: Path, calib_items, transform) -> Path:
 
 
 def quantize_int4(src: Path, dst: Path, block_size: int = 128) -> Path:
-    """Weight-only 4-bit. API moved between ORT versions; try the modern one, then the legacy."""
+    """Weight-only 4-bit (MatMulNBits).
+
+    The ORT module was renamed between releases, so try the current path first and fall back to
+    the legacy one. Verified working on onnxruntime 1.31.1 with the `onnx-ir` package installed —
+    without onnx-ir the import fails with ModuleNotFoundError.
+    """
+    import onnx
+
+    errors: list[str] = []
+
+    # ORT >= 1.20 : MatMulNBitsQuantizer (needs `onnx-ir`)
+    try:
+        from onnxruntime.quantization.matmul_nbits_quantizer import MatMulNBitsQuantizer
+        q = MatMulNBitsQuantizer(onnx.load(str(src)), bits=4, block_size=block_size, is_symmetric=True)
+        q.process()
+        q.model.save_model_to_file(str(dst), use_external_data_format=False)
+        return dst
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"matmul_nbits_quantizer: {type(e).__name__}: {e}")
+
+    # older ORT : MatMul4BitsQuantizer
     try:
         from onnxruntime.quantization.matmul_4bits_quantizer import MatMul4BitsQuantizer
         from onnxruntime.quantization.onnx_quantizer import ONNXModel
-        model = ONNXModel(__import__("onnx").load(str(src)))
+        model = ONNXModel(onnx.load(str(src)))
         MatMul4BitsQuantizer(model, block_size=block_size, is_symmetric=True).process()
         model.save_model_to_file(str(dst), use_external_data_format=False)
         return dst
-    except Exception as e:  # noqa: BLE001 - version drift is expected, we report it plainly
-        raise RuntimeError(
-            f"int4 weight-only quantization unavailable in this onnxruntime build ({e}). "
-            "Install onnxruntime>=1.18 and retry, or skip the int4 rung."
-        ) from e
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"matmul_4bits_quantizer: {type(e).__name__}: {e}")
+
+    raise RuntimeError(
+        "int4 weight-only quantization unavailable in this onnxruntime build. "
+        "pip install 'onnxruntime>=1.18' onnx-ir and retry, or skip the int4 rung. "
+        f"Tried: {' | '.join(errors)}"
+    )
 
 
 # ------------------------------------------------------------------ benchmark
@@ -171,6 +196,9 @@ def main() -> None:
     ap.add_argument("--size", type=int, default=224)
     ap.add_argument("--bench-n", type=int, default=200)
     args = ap.parse_args()
+
+    import torch
+    from src.data.dataset import build_transforms, index_folder
 
     args.out.mkdir(parents=True, exist_ok=True)
     ck = torch.load(args.ckpt, map_location="cpu")

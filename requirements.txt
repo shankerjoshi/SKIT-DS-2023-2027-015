@@ -16,6 +16,7 @@ shap>=0.44
 onnx>=1.16
 onnxruntime>=1.18
 onnxconverter-common>=1.14
+onnx-ir>=0.1          # required by ORT's 4-bit quantizer
 
 # Serving
 fastapi>=0.110
