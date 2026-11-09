@@ -1,0 +1,26 @@
+# data
+data/raw/
+data/processed/
+*.csv
+!results/*.csv
+
+# weights and exports
+*.pt
+*.pth
+*.onnx
+*.tflite
+runs/
+results/*.onnx
+
+# python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+*.egg-info/
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/

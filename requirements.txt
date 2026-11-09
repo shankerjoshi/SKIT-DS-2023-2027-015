@@ -1,0 +1,29 @@
+# Core
+numpy>=1.26
+pandas>=2.1
+scikit-learn>=1.4
+matplotlib>=3.8
+Pillow>=10.0
+
+# Deep learning (install the CUDA build matching your driver)
+torch>=2.2
+torchvision>=0.17
+
+# Explainability
+shap>=0.44
+
+# Export / quantization
+onnx>=1.16
+onnxruntime>=1.18
+onnxconverter-common>=1.14
+
+# Serving
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+
+# Utilities
+pyyaml>=6.0
+kaggle>=1.6
+requests>=2.31
+tqdm>=4.66

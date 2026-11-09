@@ -1,0 +1,11 @@
+# Disease classifier training — Kaggle T4 (free tier)
+data: "data/raw/plantvillage/New Plant Diseases Dataset(Augmented)/train"
+arch: mobilenet_v3_large
+epochs: 12
+warmup_epochs: 1
+batch_size: 64
+lr: 0.0003
+size: 224
+workers: 4
+out: runs
+seed: 42

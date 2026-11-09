@@ -1,0 +1,21 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install lightweight deps (no torch — rules and schemas only)
+        run: pip install pytest pydantic fastapi
+      - name: Compile check
+        run: python -m compileall -q src api data tests
+      - name: Rule engine and contract tests
+        run: python -m pytest -q tests/
