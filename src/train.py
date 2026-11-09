@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 
@@ -85,7 +86,7 @@ def main() -> None:
     ap.add_argument("--batch-size", type=int, default=64)
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--size", type=int, default=224)
-    ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--workers", type=int, default=0, help="0 = auto (one per vCPU, capped at 8)")
     ap.add_argument("--out", type=Path, default=Path("runs"))
     ap.add_argument("--no-amp", action="store_true", help="disable fp16 autocast (CPU debugging)")
     ap.add_argument("--no-channels-last", action="store_true", help="disable NHWC memory format")
@@ -103,7 +104,15 @@ def main() -> None:
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    cores = os.cpu_count() or 1
+    if args.workers <= 0:
+        args.workers = min(cores, 8)
+    # One DataLoader worker per vCPU; the main process then stays out of OpenMP's way so the
+    # worker processes own the cores they were given.
+    if args.workers > 0:
+        torch.set_num_threads(1)
     amp = (device.type == "cuda") and not args.no_amp
+    print(f"cpu cores={cores} dataloader_workers={args.workers} torch_threads={torch.get_num_threads()}")
     if device.type == "cuda":
         # autotune the conv algorithms for our fixed 224x224 shape
         torch.backends.cudnn.benchmark = True

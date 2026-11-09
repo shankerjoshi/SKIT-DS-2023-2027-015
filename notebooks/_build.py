@@ -138,8 +138,34 @@ write("02_train_disease.ipynb", [
        "Two-stage schedule: 1 epoch head-only, then unfreeze everything at a lower LR.",
        "The number to beat: **val macro-F1**, not accuracy — the classes are imbalanced."),
     SETUP,
+    md("### Find the CPU sweet spot first",
+       "Each DataLoader worker is a separate process decoding JPEGs. Too few starve the GPU; more than "
+       "the vCPU count oversubscribes and everything slows down. Measure it once, then use the winner."),
     code("""
-!python -m src.train --config configs/train_disease.yaml
+import os, time
+from torch.utils.data import DataLoader
+from src.data.dataset import LeafDataset, build_transforms, index_folder
+
+TRAIN_DIR = "data/fast/plantvillage/train"   # from data/prepare_fast.py; falls back to the raw dir
+items, classes = index_folder(TRAIN_DIR)
+ds = LeafDataset(items[:4000], build_transforms(True, 224), classes)
+print("vCPUs available:", os.cpu_count())
+
+for w in [0, 1, 2, 4]:
+    kw = {"prefetch_factor": 4} if w else {}
+    dl = DataLoader(ds, batch_size=64, num_workers=w, pin_memory=True, persistent_workers=w > 0, **kw)
+    it = iter(dl); next(it)                       # warm-up batch
+    t0 = time.perf_counter(); n = 0
+    for i, _ in enumerate(it):
+        n += 64
+        if i == 19:
+            break
+    print(f"workers={w}: {n / (time.perf_counter() - t0):6.1f} images/s")
+"""),
+    md("Use the best worker count below, and try `--batch-size 128` once — if it does not raise "
+       "CUDA out-of-memory, it is free throughput."),
+    code("""
+!python -m src.train --config configs/train_disease.yaml --batch-size 128
 """),
     code("""
 import json, pandas as pd, matplotlib.pyplot as plt
