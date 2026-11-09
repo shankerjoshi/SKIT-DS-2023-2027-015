@@ -23,16 +23,21 @@ pip install -r requirements.txt
 # 1. Data (needs a Kaggle API token in ~/.kaggle/kaggle.json)
 python data/download.py --what all --dest data/raw
 
-# 2. Train (GPU strongly recommended; on Kaggle use notebooks/02)
-python -m src.train --config configs/train_disease.yaml
+# 2. Optional but worth it: pre-resize once so epochs stop paying for JPEG decode
+python data/prepare_fast.py --src "data/raw/plantvillage/New Plant Diseases Dataset(Augmented)/train" \
+                            --dst data/fast/plantvillage/train --size 224 --workers 4
 
-# 3. Evaluate + explain
+# 3. Train (GPU strongly recommended; on Kaggle use notebooks/02)
+python -m src.train --config configs/train_disease.yaml --compile
+# throughput flags: --channels-last (on by default) --compile --workers 4 --batch-size 64
+
+# 4. Evaluate + explain
 python -m src.evaluate --ckpt runs/best.pt --out results/
 
-# 4. Quantize and benchmark
+# 5. Quantize and benchmark
 python -m src.quantize --ckpt runs/best.pt --calib data/raw/plantvillage/valid --out results/
 
-# 5. Serve
+# 6. Serve
 uvicorn api.main:app --reload
 ```
 
