@@ -40,11 +40,14 @@ GITHUB_PLANTVILLAGE = "https://github.com/spMohanty/PlantVillage-Dataset.git"
 OPEN_METEO = "https://api.open-meteo.com/v1/forecast"
 
 
+from kaggle.api.kaggle_api_extended import KaggleApi
+
 def kaggle_download(slug: str, dest: Path) -> Path:
     dest.mkdir(parents=True, exist_ok=True)
-    cmd = [sys.executable, "-m", "kaggle", "datasets", "download", "-d", slug, "-p", str(dest), "--unzip"]
-    print("  $", " ".join(cmd))
-    subprocess.run(cmd, check=True)
+    api = KaggleApi()
+    api.authenticate()
+    print(f"Downloading {slug} -> {dest} (unzip=True)...")
+    api.dataset_download_files(slug, path=str(dest), unzip=True, quiet=False)
     return dest
 
 
